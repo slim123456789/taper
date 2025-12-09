@@ -11,15 +11,18 @@ import {
   type PickSide,
 } from "@/data/taperData";
 import { usePicks } from "@/hooks/usePicks";
+import { results } from "@/data/results";
+import { getPickOutcome } from "@/utils/scoring";
 
 type PageParams = {
   params: Promise<{ meetId: string }>;
 };
 
 export default function MeetPage({ params }: PageParams) {
+  // Required by Next.js for dynamic routes
   const { meetId } = use(params);
-  const meet = meets.find((m) => m.id === meetId);
 
+  const meet = meets.find((m) => m.id === meetId);
   const { picks, submitted, setPick, submitMarket } = usePicks();
 
   const [selectedGender, setSelectedGender] = useState<Gender>(
@@ -52,7 +55,8 @@ export default function MeetPage({ params }: PageParams) {
   return (
     <main className="flex min-h-screen justify-center bg-gradient-to-b from-[#02030A] to-[#020107] px-4 py-8">
       <div className="w-full max-w-[430px] rounded-3xl border border-white/10 bg-[#070A14] px-5 pb-9 pt-7 shadow-[0_26px_70px_rgba(0,0,0,0.85)] text-slate-50">
-        {/* Top row: back */}
+        
+        {/* Top row */}
         <div className="mb-4 flex items-center justify-between text-[11px] text-slate-300">
           <Link
             href="/"
@@ -113,7 +117,7 @@ export default function MeetPage({ params }: PageParams) {
           })}
         </div>
 
-        {/* Summary */}
+        {/* Market summary */}
         <section className="mb-4 rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-[12px] text-slate-200">
           <div className="flex items-center justify-between">
             <p>
@@ -122,6 +126,7 @@ export default function MeetPage({ params }: PageParams) {
                 {submittedCount}/{totalMarkets}
               </span>
             </p>
+
             {isLockedByTime && (
               <span className="rounded-full border border-slate-400/50 bg-slate-500/10 px-2 py-[2px] text-[10px] font-medium text-slate-200">
                 Locked
@@ -161,6 +166,7 @@ export default function MeetPage({ params }: PageParams) {
               lockedByTime={isLockedByTime}
             />
           ))}
+
           {meetMarkets.length === 0 && (
             <p className="text-[12px] text-slate-400">
               No markets yet for this gender.
@@ -172,7 +178,16 @@ export default function MeetPage({ params }: PageParams) {
   );
 }
 
-/* ---------- Market card ---------- */
+/* ---------- Market Card ---------- */
+
+type MarketCardProps = {
+  market: MarketType;
+  pick?: PickSide;
+  submitted: boolean;
+  onPick: (id: string, side: PickSide) => void;
+  onSubmit: (id: string) => void;
+  lockedByTime: boolean;
+};
 
 function MarketCard({
   market,
@@ -181,14 +196,10 @@ function MarketCard({
   onPick,
   onSubmit,
   lockedByTime,
-}: {
-  market: MarketType;
-  pick?: PickSide;
-  submitted: boolean;
-  onPick: (id: string, side: PickSide) => void;
-  onSubmit: (id: string) => void;
-  lockedByTime: boolean;
-}) {
+}: MarketCardProps) {
+  const result = results[market.id];
+  const outcome = getPickOutcome(market.timeLabel, result, pick);
+
   const votesOver = market.votesOver ?? 0;
   const votesUnder = market.votesUnder ?? 0;
   const totalVotes = votesOver + votesUnder;
@@ -200,7 +211,8 @@ function MarketCard({
 
   return (
     <article className="rounded-2xl border border-white/12 bg-white/[0.03] px-4 py-3 text-slate-100">
-      {/* Swimmer + event */}
+
+      {/* Swimmer + Event */}
       <div>
         <p className="text-[13px] font-semibold leading-tight">
           {market.swimmer}
@@ -208,65 +220,63 @@ function MarketCard({
         <p className="mt-1 text-[11px] text-slate-200">{market.event}</p>
       </div>
 
-      {/* PB / seed if present */}
+      {/* PB + Seed */}
       {(market.pb || market.seed) && (
         <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-slate-300">
           {market.pb && (
-            <span>
-              PB: <span className="text-slate-100">{market.pb}</span>
-            </span>
+            <span>PB: <span className="text-slate-100">{market.pb}</span></span>
           )}
           {market.seed && (
-            <span>
-              Seed: <span className="text-slate-100">{market.seed}</span>
-            </span>
+            <span>Seed: <span className="text-slate-100">{market.seed}</span></span>
           )}
         </div>
       )}
 
-      {/* Line + sentiment */}
-      <div className="mt-2 space-y-1.5 text-[11px]">
-        <p className="text-slate-100">
-          <span className="opacity-75">Time to beat:</span>{" "}
-          <span className="font-semibold">{market.timeLabel}</span>
+      {/* Line */}
+      <p className="mt-2 text-[11px] text-slate-100">
+        <span className="opacity-75">Time to beat:</span>{" "}
+        <span className="font-semibold">{market.timeLabel}</span>
+      </p>
+
+      {/* Result */}
+      {result && (
+        <p className="mt-1 text-[11px]">
+          Result: <span className="font-semibold text-white">{result}</span>
         </p>
+      )}
 
-        {totalVotes > 0 && (
-          <div className="space-y-1">
-            <div className="flex items-center justify-between text-[10px] text-slate-300">
-              <span>👥 {totalVotes}</span>
-              <span>
-                Over {percentOver}% · Under {percentUnder}%
-              </span>
-            </div>
-            <div className="flex h-1 w-full overflow-hidden rounded-full bg-slate-900/70">
-              <div
-                className="h-full bg-[#B5473C]"
-                style={{ width: `${percentOver}%` }}
-              />
-              <div
-                className="h-full bg-[#2E7C5A]"
-                style={{ width: `${percentUnder}%` }}
-              />
-            </div>
-          </div>
-        )}
+      {/* Correctness */}
+      {submitted && (
+        <p className="mt-1 text-[10px] font-semibold">
+          {outcome === "correct" && (
+            <span className="text-emerald-300">Correct ✓</span>
+          )}
+          {outcome === "incorrect" && (
+            <span className="text-rose-400">Incorrect ✗</span>
+          )}
+          {outcome === "pending" && (
+            <span className="text-slate-400">Pending…</span>
+          )}
+        </p>
+      )}
 
-        {pick && (
-          <p className="text-[10px] font-semibold text-slate-100">
-            Your pick:{" "}
-            <span
-              className={
-                pick === "under" ? "text-emerald-300" : "text-rose-300"
-              }
-            >
-              {pick === "under" ? "Under ↓" : "Over ↑"}
+      {/* Sentiment */}
+      {totalVotes > 0 && (
+        <div className="mt-2 space-y-1">
+          <div className="flex items-center justify-between text-[10px] text-slate-300">
+            <span>👥 {totalVotes}</span>
+            <span>
+              Over {percentOver}% · Under {percentUnder}%
             </span>
-          </p>
-        )}
-      </div>
+          </div>
+          <div className="flex h-1 w-full overflow-hidden rounded-full bg-slate-900/70">
+            <div className="h-full bg-[#B5473C]" style={{ width: `${percentOver}%` }} />
+            <div className="h-full bg-[#2E7C5A]" style={{ width: `${percentUnder}%` }} />
+          </div>
+        </div>
+      )}
 
-      {/* Over / Under + submit */}
+      {/* Over / Under */}
       <div className="mt-3 space-y-2">
         <div className="flex gap-1.5">
           <button
@@ -283,6 +293,7 @@ function MarketCard({
           >
             Over
           </button>
+
           <button
             type="button"
             disabled={disabled}
@@ -299,6 +310,7 @@ function MarketCard({
           </button>
         </div>
 
+        {/* Submit */}
         <button
           type="button"
           disabled={submitted || !pick || lockedByTime}

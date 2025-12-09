@@ -11,21 +11,16 @@
   backdrop-filter: blur(18px);
 }
 
-:root {
-  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
-  --font-serif: "Playfair Display", "Times New Roman", serif;
-}
+/* Fonts:
+   - next/font sets CSS variables:
+     --font-sans, --font-serif, --font-migra
+*/
 
 body {
   @apply min-h-screen;
   font-family: var(--font-sans);
 }
 
-:root {
-  --font-migra: 'Migra', sans-serif;
-}
-
 .font-migra {
   font-family: var(--font-migra);
 }
-

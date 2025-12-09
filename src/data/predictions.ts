@@ -1,7 +1,6 @@
 // src/data/predictions.ts
 
-export type MeetCategory = "NCAA" | "Pan Pacs" | "Europeans";
-export type Gender = "Men" | "Women";
+import type { MeetCategory, Gender } from "@/data/taperData";
 
 export type PredictionCard = {
   id: string;

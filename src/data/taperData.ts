@@ -5,26 +5,26 @@ export type Gender = "Men" | "Women";
 export type PickSide = "over" | "under";
 
 export type Meet = {
-  id: string;                 // unique, sluggy id, e.g. "ncaa-m-2026"
-  name: string;               // display name, e.g. "NCAA Men's Championships"
-  category: MeetCategory;     // NCAA / International / Olympics
-  leagueTag: string;          // short tag, e.g. "NCAA", "SEC", "OLY"
-  year: number;               // e.g. 2026
-  genders: Gender[];          // which genders this meet has
-  lockTime?: string;          // ISO string, when slate locks (optional for now)
+  id: string; // unique, sluggy id, e.g. "ncaa-m-2026"
+  name: string; // display name, e.g. "NCAA Men's Championships"
+  category: MeetCategory; // NCAA / International / Olympics
+  leagueTag: string; // short tag, e.g. "NCAA", "SEC", "OLY"
+  year: number; // e.g. 2026
+  genders: Gender[]; // which genders this meet has
+  lockTime?: string; // ISO string, when slate locks (optional for now)
 };
 
 export type Market = {
-  id: string;                 // unique, e.g. "liendo-100fly-ncaa-m-2026"
-  meetId: string;             // must match a Meet.id
-  gender: Gender;             // Men / Women
-  swimmer: string;            // e.g. "Josh Liendo"
-  event: string;              // e.g. "100 Yard Butterfly"
-  timeLabel: string;          // line / record label, e.g. "Dressel's 42.80"
-  pb?: string;                // optional personal best
-  seed?: string;              // optional seed time
-  votesOver?: number;         // pseudo community sentiment
-  votesUnder?: number;        // pseudo community sentiment
+  id: string; // unique, e.g. "liendo-100fly-ncaa-m-2026"
+  meetId: string; // must match a Meet.id
+  gender: Gender; // Men / Women
+  swimmer: string; // e.g. "Josh Liendo"
+  event: string; // e.g. "100 Yard Butterfly"
+  timeLabel: string; // line / record label, e.g. "Dressel's 42.80"
+  pb?: string; // optional personal best
+  seed?: string; // optional seed time
+  votesOver?: number; // pseudo community sentiment
+  votesUnder?: number; // pseudo community sentiment
 };
 
 /* -------------------- MEETS -------------------- */

@@ -3,37 +3,13 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import localFont from "next/font/local";
-
-// src/app/layout.tsx
-import "./globals.css";
 import { PicksProvider } from "@/hooks/usePicks";
-// plus any font imports you already had
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <html lang="en" /* className={migra.variable} etc if you have it */>
-      <body>
-        <PicksProvider>{children}</PicksProvider>
-      </body>
-    </html>
-  );
-}
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 const playfair = Playfair_Display({
   subsets: ["latin"],
   variable: "--font-serif",
 });
-
-export const metadata: Metadata = {
-  title: "Taper",
-  description: "How elite is your swim knowledge?",
-};
-
 const migra = localFont({
   src: [
     {
@@ -50,3 +26,24 @@ const migra = localFont({
   variable: "--font-migra",
 });
 
+export const metadata: Metadata = {
+  title: "Taper",
+  description: "How elite is your swim knowledge?",
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html
+      lang="en"
+      className={`${inter.variable} ${playfair.variable} ${migra.variable}`}
+    >
+      <body>
+        <PicksProvider>{children}</PicksProvider>
+      </body>
+    </html>
+  );
+}

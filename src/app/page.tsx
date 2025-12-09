@@ -161,19 +161,21 @@ function MeetQuickLinks() {
 
 /* ---------- Home Market Card (Spotlight) ---------- */
 
+type HomeMarketCardProps = {
+  market: MarketType;
+  pick?: PickSide;
+  submitted: boolean;
+  onPick: (id: string, side: PickSide) => void;
+  onSubmit: (id: string) => void;
+};
+
 function HomeMarketCard({
   market,
   pick,
   submitted,
   onPick,
   onSubmit,
-}: {
-  market: MarketType;
-  pick?: PickSide;
-  submitted: boolean;
-  onPick: (id: string, side: PickSide) => void;
-  onSubmit: (id: string) => void;
-}) {
+}: HomeMarketCardProps) {
   const router = useRouter();
   const meet = meets.find((m) => m.id === market.meetId);
   const votesOver = market.votesOver ?? 0;
@@ -193,10 +195,7 @@ function HomeMarketCard({
   return (
     <article className="flex h-full flex-col justify-between rounded-2xl border border-white/12 bg-white/[0.03] px-3.5 py-3 text-slate-100">
       {/* Top-clickable area */}
-      <div
-        className="cursor-pointer"
-        onClick={handleCardClick}
-      >
+      <div className="cursor-pointer" onClick={handleCardClick}>
         {/* Swimmer + event */}
         <p className="text-[13px] font-semibold leading-tight">
           {market.swimmer}

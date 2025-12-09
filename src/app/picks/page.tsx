@@ -1,156 +1,253 @@
+// src/app/picks/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useMemo } from "react";
 import {
   markets,
   meets,
-  type PickSide,
   type Market as MarketType,
+  type PickSide,
 } from "@/data/taperData";
+import { usePicks } from "@/hooks/usePicks";
+import { results } from "@/data/results";
+import { getPickOutcome } from "@/utils/scoring";
 
-type PickMap = Record<string, PickSide>;
+type EnrichedPick = {
+  market: MarketType;
+  pick?: PickSide;
+  submitted: boolean;
+};
 
 export default function PicksPage() {
-  const [picks, setPicks] = useState<PickMap>({});
+  const { picks, submitted, clearAll, clearSubmission } = usePicks();
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const raw = window.localStorage.getItem("taper_picks_v1");
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as PickMap;
-      setPicks(parsed);
-    } catch (err) {
-      console.error("Failed to load picks", err);
-    }
-  }, []);
+  const meetMap = useMemo(
+    () => new Map(meets.map((m) => [m.id, m] as const)),
+    [],
+  );
 
-  const grouped = useMemo(() => {
-    const marketById = new Map<string, MarketType>();
-    for (const m of markets) marketById.set(m.id, m);
+  // Group user's interacted markets by meet
+  const picksByMeet = useMemo(() => {
+    const result = new Map<string, EnrichedPick[]>();
 
-    const byMeet: Record<
-      string,
-      { meetName: string; markets: { market: MarketType; side: PickSide }[] }
-    > = {};
+    markets.forEach((market) => {
+      const pick = picks[market.id];
+      const isSubmitted = !!submitted[market.id];
 
-    for (const [marketId, side] of Object.entries(picks)) {
-      const market = marketById.get(marketId);
-      if (!market) continue;
-      const meet = meets.find((m) => m.id === market.meetId);
-      if (!meet) continue;
+      // Only show picks that appear in UI (picked OR submitted)
+      if (!pick && !isSubmitted) return;
 
-      if (!byMeet[meet.id]) {
-        byMeet[meet.id] = { meetName: meet.name, markets: [] };
-      }
-      byMeet[meet.id].markets.push({ market, side });
-    }
+      const arr = result.get(market.meetId) ?? [];
+      arr.push({ market, pick, submitted: isSubmitted });
+      result.set(market.meetId, arr);
+    });
 
-    return byMeet;
-  }, [picks]);
+    return result;
+  }, [picks, submitted]);
 
-  const hasPicks = Object.keys(grouped).length > 0;
+  const totalPicks = markets.filter(
+    (m) => picks[m.id] !== undefined || submitted[m.id],
+  ).length;
 
-  const handleClear = () => {
-    if (typeof window === "undefined") return;
-    window.localStorage.removeItem("taper_picks_v1");
-    setPicks({});
-  };
+  const hasAny = totalPicks > 0;
 
   return (
-    <main className="flex min-h-screen justify-center bg-gradient-to-b from-[#0E1A33] to-[#07101F] px-4 py-8">
-      <div className="app-shell glass-panel w-full max-w-[430px] rounded-2xl border border-white/10 bg-[#101E3C]/90 px-4 pb-8 pt-5 shadow-lg shadow-black/20 text-slate-100">
-        {/* Top nav */}
-        <div className="mb-3 flex items-center justify-between text-[11px] text-slate-300">
-          <Link href="/" className="hover:text-white">
-            ← Meets
+    <main className="flex min-h-screen justify-center bg-gradient-to-b from-[#02030A] to-[#020107] px-4 py-8">
+      <div className="w-full max-w-[430px] rounded-3xl border border-white/10 bg-[#070A14] px-5 pb-9 pt-7 shadow-[0_26px_70px_rgba(0,0,0,0.85)] text-slate-50">
+
+        {/* Top row */}
+        <div className="mb-4 flex items-center justify-between text-[11px] text-slate-300">
+          <Link
+            href="/"
+            className="rounded-full border border-white/18 px-3 py-1 text-[10px] font-medium text-slate-50 hover:border-white/35 hover:bg-white/5"
+          >
+            ← Back to Taper
           </Link>
+
+          {hasAny && (
+            <button
+              type="button"
+              onClick={clearAll}
+              className="rounded-full border border-white/18 px-3 py-1 text-[10px] font-medium text-slate-200 hover:border-red-400/70 hover:text-red-200"
+            >
+              Clear all
+            </button>
+          )}
         </div>
 
-        <header className="mb-4 text-center">
-          <h1 className="font-migra text-3xl tracking-[0.08em] uppercase">
-            TAPER
-          </h1>
-          <p className="mt-1 text-[10px] tracking-[0.15em] text-slate-300 uppercase">
-            Swim Predictions
+        {/* Header */}
+        <header className="mb-5 text-center">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+            Your picks
           </p>
-          <p className="mt-2 text-[11px] text-slate-200">Your picks</p>
+          <h1 className="mt-1 font-migra text-[22px] leading-snug text-white">
+            Your slate overview
+          </h1>
+
+          {!hasAny && (
+            <p className="mt-2 text-[11px] text-slate-400">
+              You haven't made any picks yet. Jump into a meet and select
+              Over/Under to get started.
+            </p>
+          )}
         </header>
 
-        {!hasPicks && (
-          <div className="mt-10 text-center text-xs text-slate-200">
-            <p>You haven&apos;t made any picks yet.</p>
-            <p className="mt-2 text-[11px] text-slate-300">
-              Choose a meet, build a slate, and track your swim instincts.
-            </p>
-            <Link
-              href="/"
-              className="mt-4 inline-block rounded-full bg-white/10 px-4 py-2 text-[11px] font-medium text-slate-100 hover:bg-white/20"
-            >
-              View meets
-            </Link>
+        {!hasAny && (
+          <div className="rounded-2xl border border-dashed border-white/14 bg-white/[0.02] px-4 py-4 text-[12px] text-slate-300">
+            <p>Your picks will appear here once you start predicting.</p>
           </div>
         )}
 
-        {hasPicks && (
-          <>
-            <div className="mt-4 flex items-center justify-between text-[11px] text-slate-300">
-              <span>All your predictions across meets.</span>
-              <button
-                type="button"
-                onClick={handleClear}
-                className="rounded-full border border-slate-500/60 px-3 py-1 text-[10px] text-slate-200 hover:bg-white/5"
-              >
-                Clear all
-              </button>
-            </div>
+        {hasAny && (
+          <section className="space-y-6">
+            {meets.map((meet) => {
+              const meetPicks = picksByMeet.get(meet.id);
+              if (!meetPicks || meetPicks.length === 0) return null;
 
-            <section className="mt-4 space-y-5">
-              {Object.entries(grouped).map(([meetId, group]) => (
-                <div key={meetId} className="rounded-xl bg-white/7 p-3">
-                  <div className="flex items-center justify-between text-xs">
+              return (
+                <div key={meet.id}>
+                  {/* Meet header */}
+                  <div className="mb-2 flex items-center justify-between">
                     <div>
-                      <p className="text-[13px] font-semibold">
-                        {group.meetName}
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                        Meet
                       </p>
-                      <p className="mt-1 text-[11px] text-slate-300">
-                        {group.markets.length} picks
+                      <h2 className="text-[14px] font-semibold text-slate-50">
+                        {meet.name}
+                      </h2>
+                      <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-slate-400">
+                        {meet.leagueTag} · {meet.year}
                       </p>
                     </div>
-                    <Link
-                      href={`/meets/${meetId}`}
-                      className="text-[11px] text-slate-300 hover:text-white"
-                    >
-                      View slate →
-                    </Link>
                   </div>
 
-                  <div className="mt-3 space-y-2">
-                    {group.markets.map(({ market, side }) => (
-                      <div
+                  {/* Picks list */}
+                  <div className="space-y-3">
+                    {meetPicks.map(({ market, pick, submitted }) => (
+                      <PickRow
                         key={market.id}
-                        className="rounded-lg bg-[#0F2B56] px-3 py-2 text-[11px]"
-                      >
-                        <p className="font-semibold">{market.swimmer}</p>
-                        <p className="mt-1 text-[11px] text-slate-200">
-                          {market.event}
-                        </p>
-                        <p className="mt-1 text-[11px] text-slate-300">
-                          Time to beat: {market.timeLabel}
-                        </p>
-                        <p className="mt-1 text-[11px] font-semibold text-slate-100">
-                          Your pick: {side === "under" ? "Under ↓" : "Over ↑"}
-                        </p>
-                      </div>
+                        market={market}
+                        pick={pick}
+                        submitted={submitted}
+                        onClearSubmission={() => clearSubmission(market.id)}
+                      />
                     ))}
                   </div>
                 </div>
-              ))}
-            </section>
-          </>
+              );
+            })}
+          </section>
         )}
       </div>
     </main>
+  );
+}
+
+/* ---------- Pick Row Component ---------- */
+
+type PickRowProps = {
+  market: MarketType;
+  pick?: PickSide;
+  submitted: boolean;
+  onClearSubmission: () => void;
+};
+
+function PickRow({ market, pick, submitted, onClearSubmission }: PickRowProps) {
+  const result = results[market.id];
+  const outcome = getPickOutcome(market.timeLabel, result, pick);
+
+  const votesOver = market.votesOver ?? 0;
+  const votesUnder = market.votesUnder ?? 0;
+  const totalVotes = votesOver + votesUnder;
+
+  const percentOver =
+    totalVotes > 0 ? Math.round((votesOver / totalVotes) * 100) : 0;
+  const percentUnder = 100 - percentOver;
+
+  return (
+    <article className="rounded-2xl border border-white/12 bg-white/[0.03] px-4 py-3 text-[11px] text-slate-100">
+
+      <div className="flex items-start justify-between gap-3">
+        
+        {/* Left side */}
+        <div>
+          {/* Swimmer + Event */}
+          <p className="text-[13px] font-semibold leading-tight">
+            {market.swimmer}
+          </p>
+          <p className="mt-1 text-[11px] text-slate-200">{market.event}</p>
+
+          {/* Line */}
+          <p className="mt-2">
+            <span className="opacity-75">Time to beat:</span>{" "}
+            <span className="font-semibold">{market.timeLabel}</span>
+          </p>
+
+          {/* Result */}
+          {result && (
+            <p className="mt-1 text-[11px]">
+              Result: <span className="font-semibold">{result}</span>
+            </p>
+          )}
+
+          {/* Outcome */}
+          {submitted && (
+            <p className="mt-1 text-[10px] font-semibold">
+              {outcome === "correct" && (
+                <span className="text-emerald-300">Correct ✓</span>
+              )}
+              {outcome === "incorrect" && (
+                <span className="text-rose-400">Incorrect ✗</span>
+              )}
+              {outcome === "pending" && (
+                <span className="text-slate-400">Pending…</span>
+              )}
+            </p>
+          )}
+        </div>
+
+        {/* Right side: Submitted badge + unlock */}
+        <div className="flex flex-col items-end gap-1">
+          <span
+            className={`rounded-full px-2 py-[2px] text-[9px] font-semibold uppercase tracking-[0.14em] ${
+              submitted
+                ? "border border-emerald-400/70 bg-emerald-500/15 text-emerald-100"
+                : pick
+                ? "border border-slate-400/70 bg-slate-500/10 text-slate-100"
+                : "border border-slate-600 bg-transparent text-slate-500"
+            }`}
+          >
+            {submitted ? "Submitted" : pick ? "Not submitted" : "No pick"}
+          </span>
+
+          {submitted && (
+            <button
+              type="button"
+              onClick={onClearSubmission}
+              className="text-[9px] text-slate-400 underline underline-offset-2 hover:text-red-300"
+            >
+              Unlock
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Sentiment */}
+      {totalVotes > 0 && (
+        <div className="mt-3 space-y-1">
+          <div className="flex items-center justify-between text-[10px] text-slate-300">
+            <span>👥 {totalVotes}</span>
+            <span>
+              Over {percentOver}% · Under {percentUnder}%
+            </span>
+          </div>
+          <div className="flex h-1 w-full overflow-hidden rounded-full bg-slate-900/70">
+            <div className="h-full bg-[#B5473C]" style={{ width: `${percentOver}%` }} />
+            <div className="h-full bg-[#2E7C5A]" style={{ width: `${percentUnder}%` }} />
+          </div>
+        </div>
+      )}
+    </article>
   );
 }
