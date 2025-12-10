@@ -11,16 +11,21 @@ import {
   type Market as MarketType,
 } from "@/data/taperData";
 import { usePicks } from "@/hooks/usePicks";
+import { results } from "@/data/results"; // Import results to check for settled markets
 import type { PickSide } from "@/data/taperData";
 
 const categoryOrder: MeetCategory[] = ["NCAA", "International", "Olympics"];
 
 export default function MeetSelectorPage() {
-  const { picks, submitted, setPick, submitMarket } = usePicks();
+  const { picks, submitted, setPick, submitMarket, clearSubmission } = usePicks();
 
   const spotlightMarkets = useMemo(() => {
     const validMeetIds = new Set(meets.map((m) => m.id));
-    const withValidMeet = markets.filter((m) => validMeetIds.has(m.meetId));
+    
+    // FILTER: Valid Meet ID + NO Result (Market is not settled)
+    const withValidMeet = markets.filter(
+      (m) => validMeetIds.has(m.meetId) && !results[m.id]
+    );
 
     const sorted = [...withValidMeet].sort((a, b) => {
       const aVotes = (a.votesOver ?? 0) + (a.votesUnder ?? 0);
@@ -54,19 +59,13 @@ export default function MeetSelectorPage() {
           <p className="text-left">
             Tap Over/Under, then submit each pick to lock it in.
           </p>
-          <Link
-            href="/picks"
-            className="rounded-full border border-white/18 px-3 py-1 text-[10px] font-medium text-slate-50 hover:border-white/35 hover:bg-white/5"
-          >
-            Your picks
-          </Link>
         </div>
 
         {/* Quick meet pills */}
         <MeetQuickLinks />
 
         {/* Spotlight picks */}
-        {spotlightMarkets.length > 0 && (
+        {spotlightMarkets.length > 0 ? (
           <section className="mt-6">
             <h2 className="mb-3 text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">
               Today&apos;s spotlight
@@ -80,9 +79,17 @@ export default function MeetSelectorPage() {
                   submitted={!!submitted[market.id]}
                   onPick={setPick}
                   onSubmit={submitMarket}
+                  onUnlock={clearSubmission}
                 />
               ))}
             </div>
+          </section>
+        ) : (
+          /* Empty state if all spotlight markets are finished */
+          <section className="mt-6">
+             <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-4 text-center text-[11px] text-slate-400">
+               <p>No active spotlight markets right now.</p>
+             </div>
           </section>
         )}
 
@@ -167,6 +174,7 @@ type HomeMarketCardProps = {
   submitted: boolean;
   onPick: (id: string, side: PickSide) => void;
   onSubmit: (id: string) => void;
+  onUnlock: (id: string) => void;
 };
 
 function HomeMarketCard({
@@ -175,6 +183,7 @@ function HomeMarketCard({
   submitted,
   onPick,
   onSubmit,
+  onUnlock,
 }: HomeMarketCardProps) {
   const router = useRouter();
   const meet = meets.find((m) => m.id === market.meetId);
@@ -190,7 +199,14 @@ function HomeMarketCard({
     router.push(`/meets/${meet.id}`);
   };
 
-  const disabled = submitted;
+  const handleMainAction = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (submitted) {
+      onUnlock(market.id);
+    } else if (pick) {
+      onSubmit(market.id);
+    }
+  };
 
   return (
     <article className="flex h-full flex-col justify-between rounded-2xl border border-white/12 bg-white/[0.03] px-3.5 py-3 text-slate-100">
@@ -251,34 +267,32 @@ function HomeMarketCard({
         <div className="flex gap-1.5">
           <button
             type="button"
-            disabled={disabled}
             onClick={(e) => {
               e.stopPropagation();
-              onPick(market.id, "over");
+              if (!submitted) onPick(market.id, "over");
             }}
             className={`flex-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] transition ${
-              disabled
-                ? "border-slate-600 text-slate-500"
-                : pick === "over"
+              pick === "over"
                 ? "border-rose-300 bg-rose-500/20 text-rose-50"
                 : "border-rose-500/70 text-rose-200 hover:bg-rose-500/10"
+            } ${
+              submitted && pick !== "over" ? "opacity-30" : "opacity-100"
             }`}
           >
             Over
           </button>
           <button
             type="button"
-            disabled={disabled}
             onClick={(e) => {
               e.stopPropagation();
-              onPick(market.id, "under");
+              if (!submitted) onPick(market.id, "under");
             }}
             className={`flex-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] transition ${
-              disabled
-                ? "border-slate-600 text-slate-500"
-                : pick === "under"
+              pick === "under"
                 ? "border-emerald-300 bg-emerald-500/20 text-emerald-50"
                 : "border-emerald-500/70 text-emerald-200 hover:bg-emerald-500/10"
+            } ${
+              submitted && pick !== "under" ? "opacity-30" : "opacity-100"
             }`}
           >
             Under
@@ -287,22 +301,18 @@ function HomeMarketCard({
 
         <button
           type="button"
-          disabled={submitted || !pick}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (!pick) return;
-            onSubmit(market.id);
-          }}
-          className={`w-full rounded-full px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${
+          disabled={!pick && !submitted}
+          onClick={handleMainAction}
+          className={`w-full rounded-full px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] transition ${
             submitted
-              ? "border border-emerald-400/60 bg-emerald-500/15 text-emerald-100"
+              ? "border border-slate-500 bg-transparent text-slate-400 hover:border-red-400 hover:text-red-300"
               : pick
               ? "border border-slate-100 bg-slate-50 text-[#070A14] hover:bg-white"
               : "border border-slate-600 bg-transparent text-slate-500"
           }`}
         >
           {submitted
-            ? "Submitted"
+            ? "Unlock"
             : pick
             ? "Submit pick"
             : "Choose Over/Under"}

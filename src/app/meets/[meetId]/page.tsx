@@ -18,16 +18,19 @@ type PageParams = {
   params: Promise<{ meetId: string }>;
 };
 
+type ViewMode = "upcoming" | "results";
+
 export default function MeetPage({ params }: PageParams) {
-  // Required by Next.js for dynamic routes
   const { meetId } = use(params);
 
   const meet = meets.find((m) => m.id === meetId);
-  const { picks, submitted, setPick, submitMarket } = usePicks();
+  const { picks, submitted, setPick, submitMarket, clearSubmission } = usePicks();
 
   const [selectedGender, setSelectedGender] = useState<Gender>(
     (meet?.genders[0] as Gender) ?? "Men",
   );
+  
+  const [viewMode, setViewMode] = useState<ViewMode>("upcoming");
 
   if (!meet) {
     return (
@@ -37,16 +40,30 @@ export default function MeetPage({ params }: PageParams) {
     );
   }
 
-  const meetMarkets = useMemo(
-    () =>
-      markets.filter(
-        (m) => m.meetId === meet.id && m.gender === selectedGender,
-      ),
-    [selectedGender, meet.id],
-  );
+  // Split markets
+  const { upcomingMarkets, settledMarkets } = useMemo(() => {
+    const relevant = markets.filter(
+      (m) => m.meetId === meet.id && m.gender === selectedGender
+    );
 
-  const totalMarkets = meetMarkets.length;
-  const submittedCount = meetMarkets.filter((m) => !!submitted[m.id]).length;
+    const upcoming: MarketType[] = [];
+    const settled: MarketType[] = [];
+
+    relevant.forEach((m) => {
+      if (results[m.id]) {
+        settled.push(m);
+      } else {
+        upcoming.push(m);
+      }
+    });
+
+    return { upcomingMarkets: upcoming, settledMarkets: settled };
+  }, [selectedGender, meet.id]);
+
+  const currentMarkets = viewMode === "upcoming" ? upcomingMarkets : settledMarkets;
+
+  const totalUpcoming = upcomingMarkets.length;
+  const submittedCount = upcomingMarkets.filter((m) => !!submitted[m.id]).length;
 
   const lockTime = meet.lockTime ? new Date(meet.lockTime) : undefined;
   const now = new Date();
@@ -97,7 +114,7 @@ export default function MeetPage({ params }: PageParams) {
         </header>
 
         {/* Gender tabs */}
-        <div className="mb-4 flex gap-2 text-[12px]">
+        <div className="mb-6 flex gap-2 text-[12px]">
           {meet.genders.map((g) => {
             const isActive = g === selectedGender;
             return (
@@ -117,45 +134,63 @@ export default function MeetPage({ params }: PageParams) {
           })}
         </div>
 
+        {/* Toggle */}
+        <div className="mb-4 flex rounded-lg bg-white/5 p-1">
+          <button
+            onClick={() => setViewMode("upcoming")}
+            className={`flex-1 rounded-md py-1.5 text-[11px] font-medium uppercase tracking-wider transition ${
+              viewMode === "upcoming"
+                ? "bg-slate-700 text-white shadow-sm"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            Upcoming
+          </button>
+          <button
+            onClick={() => setViewMode("results")}
+            className={`flex-1 rounded-md py-1.5 text-[11px] font-medium uppercase tracking-wider transition ${
+              viewMode === "results"
+                ? "bg-slate-700 text-white shadow-sm"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            Results
+          </button>
+        </div>
+
         {/* Market summary */}
-        <section className="mb-4 rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-[12px] text-slate-200">
-          <div className="flex items-center justify-between">
-            <p>
-              Picks locked:{" "}
-              <span className="font-semibold text-slate-50">
-                {submittedCount}/{totalMarkets}
-              </span>
-            </p>
-
-            {isLockedByTime && (
-              <span className="rounded-full border border-slate-400/50 bg-slate-500/10 px-2 py-[2px] text-[10px] font-medium text-slate-200">
-                Locked
-              </span>
-            )}
-          </div>
-
-          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-900/80">
-            <div
-              className="h-full bg-slate-100"
-              style={{
-                width:
-                  totalMarkets > 0
-                    ? `${(submittedCount / totalMarkets) * 100}%`
-                    : "0%",
-              }}
-            />
-          </div>
-
-          <p className="mt-2 text-[11px] text-slate-400">
-            {isLockedByTime
-              ? "Slate locked — predictions are closed."
-              : "Tap Over/Under, then submit each card to lock that pick."}
-          </p>
-        </section>
+        {viewMode === "upcoming" && (
+          <section className="mb-4 rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-[12px] text-slate-200">
+            <div className="flex items-center justify-between">
+              <p>
+                Picks locked:{" "}
+                <span className="font-semibold text-slate-50">
+                  {submittedCount}/{totalUpcoming}
+                </span>
+              </p>
+              {isLockedByTime && (
+                <span className="rounded-full border border-slate-400/50 bg-slate-500/10 px-2 py-[2px] text-[10px] font-medium text-slate-200">
+                  Locked
+                </span>
+              )}
+            </div>
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-900/80">
+              <div
+                className="h-full bg-slate-100"
+                style={{
+                  width:
+                    totalUpcoming > 0
+                      ? `${(submittedCount / totalUpcoming) * 100}%`
+                      : "0%",
+                }}
+              />
+            </div>
+          </section>
+        )}
 
         {/* Markets */}
         <section className="space-y-3">
-          {meetMarkets.map((market) => (
+          {currentMarkets.map((market) => (
             <MarketCard
               key={market.id}
               market={market}
@@ -163,14 +198,19 @@ export default function MeetPage({ params }: PageParams) {
               submitted={!!submitted[market.id]}
               onPick={setPick}
               onSubmit={submitMarket}
+              onUnlock={clearSubmission}
               lockedByTime={isLockedByTime}
             />
           ))}
 
-          {meetMarkets.length === 0 && (
-            <p className="text-[12px] text-slate-400">
-              No markets yet for this gender.
-            </p>
+          {currentMarkets.length === 0 && (
+            <div className="py-8 text-center">
+              <p className="text-[12px] text-slate-400">
+                {viewMode === "upcoming"
+                  ? "No active markets available."
+                  : "No final results yet."}
+              </p>
+            </div>
           )}
         </section>
       </div>
@@ -186,6 +226,7 @@ type MarketCardProps = {
   submitted: boolean;
   onPick: (id: string, side: PickSide) => void;
   onSubmit: (id: string) => void;
+  onUnlock: (id: string) => void;
   lockedByTime: boolean;
 };
 
@@ -195,6 +236,7 @@ function MarketCard({
   submitted,
   onPick,
   onSubmit,
+  onUnlock,
   lockedByTime,
 }: MarketCardProps) {
   const result = results[market.id];
@@ -207,13 +249,29 @@ function MarketCard({
     totalVotes > 0 ? Math.round((votesOver / totalVotes) * 100) : 0;
   const percentUnder = 100 - percentOver;
 
-  const disabled = submitted || lockedByTime;
+  const isSettled = !!result;
+  const interactionDisabled = lockedByTime || isSettled;
+
+  // KEY FIX: Only show visual selection if it was actually submitted (locked in).
+  // If settled and not submitted, we force visual neutrality.
+  const visualPick = (isSettled && !submitted) ? undefined : pick;
+
+  const handleMainAction = () => {
+    if (interactionDisabled) return;
+    if (submitted) {
+      onUnlock(market.id);
+    } else if (pick) {
+      onSubmit(market.id);
+    }
+  };
 
   return (
-    <article className="rounded-2xl border border-white/12 bg-white/[0.03] px-4 py-3 text-slate-100">
+    <article className={`rounded-2xl border px-4 py-3 text-slate-100 transition ${
+        isSettled ? "border-white/5 bg-white/[0.01]" : "border-white/12 bg-white/[0.03]"
+    }`}>
 
-      {/* Swimmer + Event */}
-      <div>
+      {/* Header Info */}
+      <div className={isSettled && !submitted ? "opacity-75" : ""}>
         <p className="text-[13px] font-semibold leading-tight">
           {market.swimmer}
         </p>
@@ -222,7 +280,7 @@ function MarketCard({
 
       {/* PB + Seed */}
       {(market.pb || market.seed) && (
-        <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-slate-300">
+        <div className={`mt-2 flex flex-wrap gap-3 text-[11px] text-slate-300 ${isSettled && !submitted ? "opacity-60" : ""}`}>
           {market.pb && (
             <span>PB: <span className="text-slate-100">{market.pb}</span></span>
           )}
@@ -232,37 +290,32 @@ function MarketCard({
         </div>
       )}
 
-      {/* Line */}
-      <p className="mt-2 text-[11px] text-slate-100">
+      {/* The Line */}
+      <p className={`mt-2 text-[11px] text-slate-100 ${isSettled && !submitted ? "opacity-60" : ""}`}>
         <span className="opacity-75">Time to beat:</span>{" "}
         <span className="font-semibold">{market.timeLabel}</span>
       </p>
 
-      {/* Result */}
+      {/* Result Display (Only if settled) */}
       {result && (
-        <p className="mt-1 text-[11px]">
-          Result: <span className="font-semibold text-white">{result}</span>
-        </p>
+        <div className="mt-2 rounded bg-white/10 px-2 py-1 text-[11px]">
+          <span className="opacity-70">Official Result:</span>{" "}
+          <span className="font-bold text-white">{result}</span>
+        </div>
       )}
 
-      {/* Correctness */}
-      {submitted && (
+      {/* User Status: Only if submitted! */}
+      {submitted && isSettled && (
         <p className="mt-1 text-[10px] font-semibold">
-          {outcome === "correct" && (
-            <span className="text-emerald-300">Correct ✓</span>
-          )}
-          {outcome === "incorrect" && (
-            <span className="text-rose-400">Incorrect ✗</span>
-          )}
-          {outcome === "pending" && (
-            <span className="text-slate-400">Pending…</span>
-          )}
+          {outcome === "correct" && <span className="text-emerald-300">You Won ✓</span>}
+          {outcome === "incorrect" && <span className="text-rose-400">You Lost ✗</span>}
+          {outcome === "pending" && <span className="text-slate-400">Pending Result…</span>}
         </p>
       )}
 
-      {/* Sentiment */}
+      {/* Sentiment Bar - dim if settled */}
       {totalVotes > 0 && (
-        <div className="mt-2 space-y-1">
+        <div className={`mt-2 space-y-1 ${isSettled ? "opacity-40" : ""}`}>
           <div className="flex items-center justify-between text-[10px] text-slate-300">
             <span>👥 {totalVotes}</span>
             <span>
@@ -276,51 +329,61 @@ function MarketCard({
         </div>
       )}
 
-      {/* Over / Under */}
+      {/* Action Buttons */}
       <div className="mt-3 space-y-2">
         <div className="flex gap-1.5">
+          {/* OVER BUTTON */}
           <button
             type="button"
-            disabled={disabled}
-            onClick={() => onPick(market.id, "over")}
+            disabled={interactionDisabled}
+            // Logic: if settled/unsubmitted, visualPick is undefined, so this renders as "unselected"
+            onClick={() => !submitted && onPick(market.id, "over")}
             className={`flex-1 rounded-full border px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] transition ${
-              disabled
-                ? "border-slate-600 text-slate-500"
-                : pick === "over"
-                ? "border-rose-300 bg-rose-500/20 text-rose-50"
-                : "border-rose-500/70 text-rose-200 hover:bg-rose-500/10"
+              visualPick === "over"
+                ? "border-rose-300 bg-rose-500/20 text-rose-50" // Selected
+                : "border-rose-500/70 text-rose-200 hover:bg-rose-500/10" // Unselected
+            } ${
+              (submitted && visualPick !== "over") || (isSettled && visualPick !== "over") 
+                ? "opacity-30" 
+                : "opacity-100"
+            } ${
+              isSettled ? "cursor-default" : ""
             }`}
           >
             Over
           </button>
 
+          {/* UNDER BUTTON */}
           <button
             type="button"
-            disabled={disabled}
-            onClick={() => onPick(market.id, "under")}
+            disabled={interactionDisabled}
+            onClick={() => !submitted && onPick(market.id, "under")}
             className={`flex-1 rounded-full border px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] transition ${
-              disabled
-                ? "border-slate-600 text-slate-500"
-                : pick === "under"
-                ? "border-emerald-300 bg-emerald-500/20 text-emerald-50"
-                : "border-emerald-500/70 text-emerald-200 hover:bg-emerald-500/10"
+               visualPick === "under"
+                ? "border-emerald-300 bg-emerald-500/20 text-emerald-50" // Selected
+                : "border-emerald-500/70 text-emerald-200 hover:bg-emerald-500/10" // Unselected
+            } ${
+              (submitted && visualPick !== "under") || (isSettled && visualPick !== "under") 
+                ? "opacity-30" 
+                : "opacity-100"
+            } ${
+              isSettled ? "cursor-default" : ""
             }`}
           >
             Under
           </button>
         </div>
 
-        {/* Submit */}
+        {/* Main Action Button */}
         <button
           type="button"
-          disabled={submitted || !pick || lockedByTime}
-          onClick={() => {
-            if (!pick || lockedByTime) return;
-            onSubmit(market.id);
-          }}
-          className={`w-full rounded-full px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${
-            submitted
-              ? "border border-emerald-400/60 bg-emerald-500/15 text-emerald-100"
+          disabled={interactionDisabled || (!pick && !submitted)}
+          onClick={handleMainAction}
+          className={`w-full rounded-full px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] transition ${
+            isSettled
+              ? "border border-transparent bg-white/5 text-slate-500 cursor-default"
+              : submitted
+              ? "border border-slate-500 bg-transparent text-slate-400 hover:border-red-400 hover:text-red-300"
               : lockedByTime
               ? "border border-slate-600 bg-transparent text-slate-500"
               : pick
@@ -328,10 +391,12 @@ function MarketCard({
               : "border border-slate-600 bg-transparent text-slate-500"
           }`}
         >
-          {submitted
-            ? "Submitted"
+          {isSettled
+            ? submitted ? "Settled" : "Did Not Submit"
             : lockedByTime
             ? "Locked"
+            : submitted
+            ? "Submitted (Tap to Unlock)"
             : pick
             ? "Submit pick"
             : "Choose Over/Under"}

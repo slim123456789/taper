@@ -69,8 +69,8 @@ export const meets: Meet[] = [
 /* -------------------- MARKETS (CARDS) -------------------- */
 /**
  * All cards must:
- *  - reference a valid meetId (one of meets[].id)
- *  - set gender to match one of meet.genders
+ * - reference a valid meetId (one of meets[].id)
+ * - set gender to match one of meet.genders
  */
 
 export const markets: Market[] = [
@@ -157,7 +157,7 @@ export const markets: Market[] = [
     gender: "Men",
     swimmer: "Léon Marchand",
     event: "400m Individual Medley",
-    timeLabel: "World Record Line",
+    timeLabel: "WR 4:02.50", // FIXED: Added time so the parser can read it
     pb: "4:02.50",
     seed: "4:03.10",
     votesOver: 30,

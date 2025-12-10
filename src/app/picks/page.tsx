@@ -22,11 +22,6 @@ type EnrichedPick = {
 export default function PicksPage() {
   const { picks, submitted, clearAll, clearSubmission } = usePicks();
 
-  const meetMap = useMemo(
-    () => new Map(meets.map((m) => [m.id, m] as const)),
-    [],
-  );
-
   // Group user's interacted markets by meet
   const picksByMeet = useMemo(() => {
     const result = new Map<string, EnrichedPick[]>();
@@ -35,8 +30,8 @@ export default function PicksPage() {
       const pick = picks[market.id];
       const isSubmitted = !!submitted[market.id];
 
-      // Only show picks that appear in UI (picked OR submitted)
-      if (!pick && !isSubmitted) return;
+      // Only show picks that are submitted (Locked Inventory)
+      if (!isSubmitted) return;
 
       const arr = result.get(market.meetId) ?? [];
       arr.push({ market, pick, submitted: isSubmitted });
@@ -47,7 +42,7 @@ export default function PicksPage() {
   }, [picks, submitted]);
 
   const totalPicks = markets.filter(
-    (m) => picks[m.id] !== undefined || submitted[m.id],
+    (m) => !!submitted[m.id], // Only count submitted
   ).length;
 
   const hasAny = totalPicks > 0;
@@ -82,20 +77,19 @@ export default function PicksPage() {
             Your picks
           </p>
           <h1 className="mt-1 font-migra text-[22px] leading-snug text-white">
-            Your slate overview
+            Your locked slip
           </h1>
 
           {!hasAny && (
             <p className="mt-2 text-[11px] text-slate-400">
-              You haven't made any picks yet. Jump into a meet and select
-              Over/Under to get started.
+              You haven&apos;t locked any picks yet. Submit predictions to see them here.
             </p>
           )}
         </header>
 
         {!hasAny && (
           <div className="rounded-2xl border border-dashed border-white/14 bg-white/[0.02] px-4 py-4 text-[12px] text-slate-300">
-            <p>Your picks will appear here once you start predicting.</p>
+            <p>Your picks will appear here once you submit them.</p>
           </div>
         )}
 
@@ -157,6 +151,19 @@ function PickRow({ market, pick, submitted, onClearSubmission }: PickRowProps) {
   const result = results[market.id];
   const outcome = getPickOutcome(market.timeLabel, result, pick);
 
+  // LOGIC FIX: Check for Locks and Results
+  const meet = meets.find((m) => m.id === market.meetId);
+  const now = new Date();
+  
+  // 1. Is it locked by time?
+  const isTimeLocked = meet?.lockTime ? now >= new Date(meet.lockTime) : false;
+  
+  // 2. Is it settled (result exists)?
+  const isSettled = !!result;
+
+  // 3. Can we unlock? Only if NOT time locked AND NOT settled.
+  const canUnlock = submitted && !isTimeLocked && !isSettled;
+
   const votesOver = market.votesOver ?? 0;
   const votesUnder = market.votesUnder ?? 0;
   const totalVotes = votesOver + votesUnder;
@@ -171,7 +178,7 @@ function PickRow({ market, pick, submitted, onClearSubmission }: PickRowProps) {
       <div className="flex items-start justify-between gap-3">
         
         {/* Left side */}
-        <div>
+        <div className="flex-1">
           {/* Swimmer + Event */}
           <p className="text-[13px] font-semibold leading-tight">
             {market.swimmer}
@@ -207,21 +214,24 @@ function PickRow({ market, pick, submitted, onClearSubmission }: PickRowProps) {
           )}
         </div>
 
-        {/* Right side: Submitted badge + unlock */}
-        <div className="flex flex-col items-end gap-1">
-          <span
-            className={`rounded-full px-2 py-[2px] text-[9px] font-semibold uppercase tracking-[0.14em] ${
-              submitted
-                ? "border border-emerald-400/70 bg-emerald-500/15 text-emerald-100"
-                : pick
-                ? "border border-slate-400/70 bg-slate-500/10 text-slate-100"
-                : "border border-slate-600 bg-transparent text-slate-500"
-            }`}
-          >
-            {submitted ? "Submitted" : pick ? "Not submitted" : "No pick"}
-          </span>
+        {/* Right side: Pick Badge + Unlock */}
+        <div className="flex flex-col items-end gap-1.5">
+          
+          {/* The PICK Badge */}
+          {pick && (
+            <span
+              className={`rounded px-2 py-1 text-[10px] font-bold uppercase tracking-widest ${
+                pick === "over"
+                  ? "bg-rose-500/20 text-rose-100 border border-rose-500/50"
+                  : "bg-emerald-500/20 text-emerald-100 border border-emerald-500/50"
+              }`}
+            >
+              {pick}
+            </span>
+          )}
 
-          {submitted && (
+          {/* UNLOCK BUTTON (Only if allowed) */}
+          {canUnlock ? (
             <button
               type="button"
               onClick={onClearSubmission}
@@ -229,6 +239,11 @@ function PickRow({ market, pick, submitted, onClearSubmission }: PickRowProps) {
             >
               Unlock
             </button>
+          ) : (
+            // Optional: Show status if locked/final
+            <span className="text-[9px] text-slate-500 uppercase tracking-wider">
+              {isSettled ? "Final" : "Locked"}
+            </span>
           )}
         </div>
       </div>
