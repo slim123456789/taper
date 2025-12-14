@@ -4,12 +4,38 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { usePicks } from "@/hooks/usePicks";
 import { getPickOutcome } from "@/utils/scoring";
-import type { Meet, Market, Gender, PickSide } from "@/data/taperData";
+
+// --- 1. Define Types Locally (Matching Supabase Schema) ---
+export type PickSide = "over" | "under";
+
+export type Meet = {
+  id: string;
+  name: string;
+  year: number;
+  league_tag: string; // db: league_tag
+  category: string;
+  genders: string[];
+  lock_time?: string; // db: lock_time
+};
+
+export type Market = {
+  id: string;
+  meet_id: string;
+  gender: string;
+  swimmer_name: string; // db: swimmer_name
+  event_name: string;   // db: event_name
+  time_label: string;   // db: time_label
+  result_time?: number | string; // db: result_time
+  votes_over?: number;  // db: votes_over
+  votes_under?: number; // db: votes_under
+  completed?: boolean;
+  pb?: string;
+  seed?: string;
+};
 
 type MeetDetailViewProps = {
   meet: Meet;
   markets: Market[];
-  // removed initialResults prop
 };
 
 type ViewMode = "upcoming" | "results";
@@ -17,20 +43,22 @@ type ViewMode = "upcoming" | "results";
 export function MeetDetailView({ meet, markets }: MeetDetailViewProps) {
   const { picks, submitted, setPick, submitMarket, clearSubmission } = usePicks();
 
-  const [selectedGender, setSelectedGender] = useState<Gender>(
-    (meet?.genders[0] as Gender) ?? "Men"
+  // Handle default gender selection safely
+  const [selectedGender, setSelectedGender] = useState<string>(
+    meet?.genders && meet.genders.length > 0 ? meet.genders[0] : "Men"
   );
   
   const [viewMode, setViewMode] = useState<ViewMode>("upcoming");
 
   const { currentMarkets, totalUpcoming, submittedCount } = useMemo(() => {
+    // Filter by gender
     const relevant = markets.filter((m) => m.gender === selectedGender);
 
     const upcoming: Market[] = [];
     const settled: Market[] = [];
 
-    // LOGIC CHANGE: Check the boolean flag
     relevant.forEach((m) => {
+      // Check the completed boolean flag
       if (m.completed) {
         settled.push(m);
       } else {
@@ -45,7 +73,8 @@ export function MeetDetailView({ meet, markets }: MeetDetailViewProps) {
     };
   }, [markets, selectedGender, viewMode, submitted]);
 
-  const lockTime = meet.lockTime ? new Date(meet.lockTime) : undefined;
+  // Handle Lock Time
+  const lockTime = meet.lock_time ? new Date(meet.lock_time) : undefined;
   const now = new Date();
   const isLockedByTime = lockTime ? now >= lockTime : false;
 
@@ -53,7 +82,7 @@ export function MeetDetailView({ meet, markets }: MeetDetailViewProps) {
     <main className="flex min-h-screen justify-center bg-gradient-to-b from-[#02030A] to-[#020107] px-4 py-8">
       <div className="w-full max-w-[430px] rounded-3xl border border-white/10 bg-[#070A14] px-5 pb-9 pt-7 shadow-[0_26px_70px_rgba(0,0,0,0.85)] text-slate-50">
         
-        {/* Header & Nav (Same as before) */}
+        {/* Header & Nav */}
         <div className="mb-4 flex items-center justify-between text-[11px] text-slate-300">
           <Link href="/" className="rounded-full border border-white/18 px-3 py-1 text-[10px] font-medium text-slate-50 hover:border-white/35 hover:bg-white/5">
             ← Back to Taper
@@ -64,7 +93,8 @@ export function MeetDetailView({ meet, markets }: MeetDetailViewProps) {
           <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Meet</p>
           <h1 className="mt-1 font-migra text-[22px] leading-snug text-white">{meet.name}</h1>
           <div className="mt-2 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.16em] text-slate-300">
-            <span className="rounded-full border border-white/18 bg-white/[0.03] px-2 py-[3px]">{meet.leagueTag}</span>
+            {/* UPDATED: league_tag */}
+            <span className="rounded-full border border-white/18 bg-white/[0.03] px-2 py-[3px]">{meet.league_tag}</span>
             <span className="rounded-full border border-white/18 bg-white/[0.03] px-2 py-[3px]">{meet.year}</span>
           </div>
         </header>
@@ -75,7 +105,7 @@ export function MeetDetailView({ meet, markets }: MeetDetailViewProps) {
             <button
               key={g}
               type="button"
-              onClick={() => setSelectedGender(g as Gender)}
+              onClick={() => setSelectedGender(g)}
               className={`flex-1 rounded-full border px-3 py-1.5 font-medium transition ${
                 g === selectedGender ? "border-white bg-white text-[#070A14]" : "border-white/16 bg-transparent text-slate-200 hover:border-white/40"
               }`}
@@ -141,13 +171,14 @@ type MarketCardProps = {
 };
 
 function MarketCard({ market, pick, submitted, onPick, onSubmit, onUnlock, lockedByTime }: MarketCardProps) {
-  // LOGIC CHANGE: Read from market.actualTime
-  const outcome = getPickOutcome(market.timeLabel, market.actualTime, pick);
+  // UPDATED: Read from market.time_label and market.result_time
+  // Convert to string safely using ?.toString()
+  const outcome = getPickOutcome(market.time_label, market.result_time?.toString(), pick);
   const isSettled = market.completed;
 
-  // Votes visual calculation
-  const votesOver = market.votesOver ?? 0;
-  const votesUnder = market.votesUnder ?? 0;
+  // UPDATED: Votes visual calculation (snake_case)
+  const votesOver = market.votes_over ?? 0;
+  const votesUnder = market.votes_under ?? 0;
   const totalVotes = votesOver + votesUnder;
   const percentOver = totalVotes > 0 ? Math.round((votesOver / totalVotes) * 100) : 0;
   const percentUnder = 100 - percentOver;
@@ -164,8 +195,10 @@ function MarketCard({ market, pick, submitted, onPick, onSubmit, onUnlock, locke
   return (
     <article className={`rounded-2xl border px-4 py-3 text-slate-100 transition ${isSettled ? "border-white/5 bg-white/[0.01]" : "border-white/12 bg-white/[0.03]"}`}>
       <div className={isSettled && !submitted ? "opacity-75" : ""}>
-        <p className="text-[13px] font-semibold leading-tight">{market.swimmer}</p>
-        <p className="mt-1 text-[11px] text-slate-200">{market.event}</p>
+        {/* UPDATED: swimmer_name */}
+        <p className="text-[13px] font-semibold leading-tight">{market.swimmer_name}</p>
+        {/* UPDATED: event_name */}
+        <p className="mt-1 text-[11px] text-slate-200">{market.event_name}</p>
       </div>
 
       {(market.pb || market.seed) && (
@@ -176,13 +209,15 @@ function MarketCard({ market, pick, submitted, onPick, onSubmit, onUnlock, locke
       )}
 
       <p className={`mt-2 text-[11px] text-slate-100 ${isSettled && !submitted ? "opacity-60" : ""}`}>
-        <span className="opacity-75">Time to beat:</span> <span className="font-semibold">{market.timeLabel}</span>
+        {/* UPDATED: time_label */}
+        <span className="opacity-75">Time to beat:</span> <span className="font-semibold">{market.time_label}</span>
       </p>
 
       {/* RESULT DISPLAY */}
-      {market.actualTime && (
+      {/* UPDATED: result_time */}
+      {market.result_time && (
         <div className="mt-2 rounded bg-white/10 px-2 py-1 text-[11px]">
-          <span className="opacity-70">Official Result:</span> <span className="font-bold text-white">{market.actualTime}</span>
+          <span className="opacity-70">Official Result:</span> <span className="font-bold text-white">{market.result_time}</span>
         </div>
       )}
 

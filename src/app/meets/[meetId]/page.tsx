@@ -1,7 +1,6 @@
-// src/app/meets/[meetId]/page.tsx
 import { notFound } from "next/navigation";
+import { createClient } from "@/utils/supabase/server";
 import { MeetDetailView } from "@/components/meet/MeetDetailView";
-import { meets, markets } from "@/data/taperData";
 
 type Props = {
   params: Promise<{ meetId: string }>;
@@ -9,12 +8,27 @@ type Props = {
 
 export default async function MeetPage({ params }: Props) {
   const { meetId } = await params;
+  
+  // 1. Initialize Supabase
+  const supabase = await createClient();
 
-  const meet = meets.find((m) => m.id === meetId);
-  if (!meet) notFound();
+  // 2. Fetch the specific meet (Single Object)
+  const { data: meet } = await supabase
+    .from("meets")
+    .select("*")
+    .eq("id", meetId)
+    .single();
 
-  const meetMarkets = markets.filter((m) => m.meetId === meetId);
+  if (!meet) {
+    return notFound();
+  }
 
-  // No longer passing 'initialResults' - the data is inside meetMarkets[i].actualTime
-  return <MeetDetailView meet={meet} markets={meetMarkets} />;
+  // 3. Fetch markets for this meet (Array)
+  const { data: markets } = await supabase
+    .from("markets")
+    .select("*")
+    .eq("meet_id", meetId); // Matches the snake_case column in DB
+
+  // 4. Render the view with live data
+  return <MeetDetailView meet={meet} markets={markets || []} />;
 }
