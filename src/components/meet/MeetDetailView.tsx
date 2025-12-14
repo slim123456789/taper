@@ -59,7 +59,7 @@ export function MeetDetailView({ meet, markets }: MeetDetailViewProps) {
 
     relevant.forEach((m) => {
       // Check the completed boolean flag
-      if (m.completed) {
+      if (m.completed || (m.result_time && m.result_time.toString().length > 0)) {
         settled.push(m);
       } else {
         upcoming.push(m);
