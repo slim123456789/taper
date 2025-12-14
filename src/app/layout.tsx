@@ -16,12 +16,12 @@ const playfair = Playfair_Display({
 const migra = localFont({
   src: [
     {
-      path: "./fonts/Migra-Extrabold.otf",
+      path: "./fonts/Migra/Migra-Extrabold.otf",
       weight: "800",
       style: "normal",
     },
     {
-      path: "./fonts/MigraItalic-ExtralightItalic.otf",
+      path: "./fonts/Migra/MigraItalic-ExtralightItalic.otf",
       weight: "200",
       style: "italic",
     },
