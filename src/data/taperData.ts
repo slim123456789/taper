@@ -21,6 +21,9 @@ export type Market = {
   swimmer: string; // e.g. "Josh Liendo"
   event: string; // e.g. "100 Yard Butterfly"
   timeLabel: string; // line / record label, e.g. "Dressel's 42.80"
+  targetTime: number;
+  completed?: boolean,
+  actualTime?: string, // Result
   pb?: string; // optional personal best
   seed?: string; // optional seed time
   votesOver?: number; // pseudo community sentiment
@@ -82,6 +85,7 @@ export const markets: Market[] = [
     swimmer: "Josh Liendo",
     event: "100 Yard Butterfly",
     timeLabel: "Dressel's 42.80",
+    targetTime: 42.80,
     pb: "43.15",
     seed: "43.30",
     votesOver: 42,
@@ -94,10 +98,11 @@ export const markets: Market[] = [
     swimmer: "Luca Urlando",
     event: "200 Yard Butterfly",
     timeLabel: "1:36.00 Barrier",
+    targetTime: 96.00,
     pb: "1:37.20",
     seed: "1:37.80",
     votesOver: 34,
-    votesUnder: 66,
+    votesUnder: 200,
   },
   {
     id: "germonprez-100br-ncaa-m-2026",
@@ -106,10 +111,13 @@ export const markets: Market[] = [
     swimmer: "Nate Germonprez",
     event: "100 Yard Breast",
     timeLabel: "Smith's 49.51",
+    targetTime: 49.51,
     pb: "50.15",
     seed: "50.30",
     votesOver: 51,
     votesUnder: 49,
+    completed: true,
+    actualTime: "50.00"
   },
   {
     id: "kos-200back-ncaa-m-2026",
@@ -118,6 +126,7 @@ export const markets: Market[] = [
     swimmer: "Hubert Kos",
     event: "200 Yard Back",
     timeLabel: "1:34.00 Barrier",
+    targetTime: 94.00,
     pb: "1:34.76",
     seed: "1:35.10",
     votesOver: 39,
@@ -132,6 +141,7 @@ export const markets: Market[] = [
     swimmer: "Kate Douglass",
     event: "200 Yard Individual Medley",
     timeLabel: "1:49.00 Barrier",
+    targetTime: 109.00,
     pb: "1:48.37",
     seed: "1:49.50",
     votesOver: 45,
@@ -144,6 +154,7 @@ export const markets: Market[] = [
     swimmer: "Claire Curzan",
     event: "100 Yard Backstroke",
     timeLabel: "1:48.00 Barrier",
+    targetTime: 108.00,
     pb: "48.26",
     seed: "48.60",
     votesOver: 40,
@@ -158,6 +169,7 @@ export const markets: Market[] = [
     swimmer: "Léon Marchand",
     event: "400m Individual Medley",
     timeLabel: "WR 4:02.50", // FIXED: Added time so the parser can read it
+    targetTime: 242.50,
     pb: "4:02.50",
     seed: "4:03.10",
     votesOver: 30,
@@ -170,6 +182,7 @@ export const markets: Market[] = [
     swimmer: "Emma McKeon",
     event: "100m Freestyle",
     timeLabel: "52.00 Barrier",
+    targetTime: 52.00,
     pb: "51.96",
     seed: "52.20",
     votesOver: 55,
@@ -184,6 +197,7 @@ export const markets: Market[] = [
     swimmer: "Caeleb Dressel",
     event: "50m Freestyle",
     timeLabel: "21.20 Barrier",
+    targetTime: 21.20,
     pb: "21.04",
     seed: "21.30",
     votesOver: 48,
@@ -196,6 +210,7 @@ export const markets: Market[] = [
     swimmer: "Ariarne Titmus",
     event: "400m Freestyle",
     timeLabel: "3:55.00 Barrier",
+    targetTime: 235.00,
     pb: "3:55.38",
     seed: "3:56.20",
     votesOver: 37,

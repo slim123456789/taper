@@ -3,7 +3,30 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePicks } from "@/hooks/usePicks";
-import type { Meet, Market, PickSide } from "@/data/taperData";
+import { AuthButton } from "@/app/auth/AuthButton";
+
+// --- 1. DEFINING TYPES LOCALLY (Matches Supabase Schema) ---
+export type PickSide = "over" | "under";
+
+export type Meet = {
+  id: string;
+  name: string;
+  year: number;
+  league_tag: string; // changed from leagueTag
+  category: string;
+  genders: string[];
+};
+
+export type Market = {
+  id: string;
+  meet_id: string;
+  swimmer_name: string; // Changed from 'swimmer'
+  event_name: string;   // Changed from 'event'
+  time_label: string;
+  votes_over?: number;
+  votes_under?: number;
+  completed?: boolean;
+};
 
 type HomeFeedProps = {
   meets: Meet[];
@@ -13,18 +36,26 @@ type HomeFeedProps = {
 export function HomeFeed({ meets, spotlightMarkets }: HomeFeedProps) {
   const { picks, submitted, setPick, submitMarket, clearSubmission } = usePicks();
 
-  // Helper to order meets for the "Quick Links" section
-  const sortedMeets = [...meets].sort((a, b) => {
-    // Custom sort order if needed, or rely on DB order
-    return b.year - a.year;
-  });
-
+  // Helper to order meets
+  const sortedMeets = [...meets].sort((a, b) => b.year - a.year);
   const categoryOrder = ["NCAA", "International", "Olympics"];
 
   return (
     <main className="flex min-h-screen justify-center bg-gradient-to-b from-[#02030A] to-[#020107] px-4 py-8">
       <div className="w-full max-w-[430px] rounded-3xl border border-white/10 bg-[#070A14] px-5 pb-9 pt-7 shadow-[0_26px_70px_rgba(0,0,0,0.85)]">
-        {/* Header */}
+        
+        {/* TOP NAVIGATION ROW */}
+        <div className="mb-6 flex items-center justify-between">
+          <Link 
+            href="/picks"
+            className="whitespace-nowrap rounded-full border border-white/18 bg-white/[0.02] px-4 py-1.5 text-[11px] font-medium text-slate-50 hover:border-white/35 hover:bg-white/[0.05] transition-colors"
+          >
+            Your Picks
+          </Link>
+          <AuthButton />
+        </div>
+
+        {/* Logo Header */}
         <header className="mb-6 text-center text-white">
           <h1 className="font-migra text-[32px] leading-none tracking-[0.12em] uppercase">
             TAPER
@@ -56,7 +87,8 @@ export function HomeFeed({ meets, spotlightMarkets }: HomeFeedProps) {
                 href={`/meets/${meet.id}`}
                 className="whitespace-nowrap rounded-full border border-white/18 bg-white/[0.02] px-3 py-1 text-[11px] font-medium text-slate-50 hover:border-white/35 hover:bg-white/[0.05]"
               >
-                {meet.leagueTag} {meet.year}
+                {/* UPDATED: league_tag */}
+                {meet.league_tag} {meet.year}
               </Link>
             ))}
           </div>
@@ -70,13 +102,13 @@ export function HomeFeed({ meets, spotlightMarkets }: HomeFeedProps) {
             </h2>
             <div className="grid grid-cols-2 gap-3">
               {spotlightMarkets.map((market) => {
-                // Find the meet for this market to display tags
-                const marketMeet = meets.find((m) => m.id === market.meetId);
+                // UPDATED: meet_id
+                const marketMeet = meets.find((m) => m.id === market.meet_id);
                 return (
                   <HomeMarketCard
                     key={market.id}
                     market={market}
-                    meet={marketMeet} // Pass meet explicitly
+                    meet={marketMeet}
                     pick={picks[market.id]}
                     submitted={!!submitted[market.id]}
                     onPick={setPick}
@@ -116,7 +148,9 @@ export function HomeFeed({ meets, spotlightMarkets }: HomeFeedProps) {
                       className="group flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3.5 text-sm text-slate-100 hover:border-white/25 hover:bg-white/[0.04]"
                     >
                       <div className="space-y-1">
-                        <p className="text-[13px] font-medium">{meet.name}</p>
+                        <p className="text-[13px] font-medium">
+                          {meet.name} {meet.year}
+                        </p>
                         <p className="text-[11px] text-slate-400">
                           {meet.genders.join(" · ")}
                         </p>
@@ -136,8 +170,7 @@ export function HomeFeed({ meets, spotlightMarkets }: HomeFeedProps) {
   );
 }
 
-// --- Sub-component (Can stay in this file or move to its own) ---
-
+// --- Sub-component ---
 type HomeMarketCardProps = {
   market: Market;
   meet?: Meet;
@@ -158,11 +191,15 @@ function HomeMarketCard({
   onUnlock,
 }: HomeMarketCardProps) {
   const router = useRouter();
-  const votesOver = market.votesOver ?? 0;
-  const votesUnder = market.votesUnder ?? 0;
+
+  // ✅ UPDATED: Database snake_case columns
+  const votesOver = market.votes_over || 0;
+  const votesUnder = market.votes_under || 0;
+  
   const totalVotes = votesOver + votesUnder;
-  const percentOver = totalVotes > 0 ? Math.round((votesOver / totalVotes) * 100) : 0;
-  const percentUnder = 100 - percentOver;
+  // Safety check for 0 votes to avoid NaN
+  const percentOver = totalVotes > 0 ? Math.round((votesOver / totalVotes) * 100) : 50;
+  const percentUnder = totalVotes > 0 ? Math.round((votesUnder / totalVotes) * 100) : 50;
 
   const handleCardClick = () => {
     if (!meet) return;
@@ -181,12 +218,13 @@ function HomeMarketCard({
   return (
     <article className="flex h-full flex-col justify-between rounded-2xl border border-white/12 bg-white/[0.03] px-3.5 py-3 text-slate-100">
       <div className="cursor-pointer" onClick={handleCardClick}>
-        <p className="text-[13px] font-semibold leading-tight">{market.swimmer}</p>
-        <p className="mt-1 text-[11px] leading-tight text-slate-200">{market.event}</p>
+        <p className="text-[13px] font-semibold leading-tight">{market.swimmer_name}</p>
+        <p className="mt-1 text-[11px] leading-tight text-slate-200">{market.event_name}</p>
 
         {meet && (
           <div className="mt-2 flex flex-wrap gap-1 text-[9px] uppercase tracking-[0.14em] text-slate-300">
-            <span className="rounded-full bg-black/40 px-2 py-[2px]">{meet.leagueTag}</span>
+             {/* UPDATED: league_tag */}
+            <span className="rounded-full bg-black/40 px-2 py-[2px]">{meet.league_tag}</span>
             <span className="rounded-full bg-black/30 px-2 py-[2px]">{meet.year}</span>
           </div>
         )}
@@ -194,21 +232,21 @@ function HomeMarketCard({
         <div className="mt-2 space-y-1.5">
           <p className="text-[11px] text-slate-100">
             <span className="opacity-75">Time to beat:</span>{" "}
-            <span className="font-semibold">{market.timeLabel}</span>
+            {/* UPDATED: time_label */}
+            <span className="font-semibold">{market.time_label}</span>
           </p>
 
-          {totalVotes > 0 && (
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-[10px] text-slate-300">
-                <span>👥 {totalVotes}</span>
-                <span>Over {percentOver}% · Under {percentUnder}%</span>
-              </div>
-              <div className="flex h-1 w-full overflow-hidden rounded-full bg-slate-900/70">
-                <div className="h-full bg-[#B5473C]" style={{ width: `${percentOver}%` }} />
-                <div className="h-full bg-[#2E7C5A]" style={{ width: `${percentUnder}%` }} />
-              </div>
+          {/* Show stats even if 0 votes, or keep check if you prefer hidden */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-[10px] text-slate-300">
+              <span>👥 {totalVotes}</span>
+              <span>Over {percentOver}% · Under {percentUnder}%</span>
             </div>
-          )}
+            <div className="flex h-1 w-full overflow-hidden rounded-full bg-slate-900/70">
+              <div className="h-full bg-[#B5473C]" style={{ width: `${percentOver}%` }} />
+              <div className="h-full bg-[#2E7C5A]" style={{ width: `${percentUnder}%` }} />
+            </div>
+          </div>
         </div>
       </div>
 

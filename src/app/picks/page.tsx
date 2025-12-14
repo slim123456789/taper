@@ -10,7 +10,7 @@ import {
   type PickSide,
 } from "@/data/taperData";
 import { usePicks } from "@/hooks/usePicks";
-import { results } from "@/data/results";
+// FIX 1: Remove the import of 'results' (it no longer exists)
 import { getPickOutcome } from "@/utils/scoring";
 
 type EnrichedPick = {
@@ -148,20 +148,20 @@ type PickRowProps = {
 };
 
 function PickRow({ market, pick, submitted, onClearSubmission }: PickRowProps) {
-  const result = results[market.id];
+  // FIX 2: Use the integrated data from the market object
+  const result = market.actualTime; // Was: results[market.id]
+  const isSettled = market.completed; // Was: !!result
+
+  // FIX 3: Pass updated values to scoring
   const outcome = getPickOutcome(market.timeLabel, result, pick);
 
-  // LOGIC FIX: Check for Locks and Results
   const meet = meets.find((m) => m.id === market.meetId);
   const now = new Date();
   
   // 1. Is it locked by time?
   const isTimeLocked = meet?.lockTime ? now >= new Date(meet.lockTime) : false;
-  
-  // 2. Is it settled (result exists)?
-  const isSettled = !!result;
 
-  // 3. Can we unlock? Only if NOT time locked AND NOT settled.
+  // 2. Can we unlock? Only if NOT time locked AND NOT settled.
   const canUnlock = submitted && !isTimeLocked && !isSettled;
 
   const votesOver = market.votesOver ?? 0;
@@ -173,42 +173,43 @@ function PickRow({ market, pick, submitted, onClearSubmission }: PickRowProps) {
   const percentUnder = 100 - percentOver;
 
   return (
-    <article className="rounded-2xl border border-white/12 bg-white/[0.03] px-4 py-3 text-[11px] text-slate-100">
+    <article className={`rounded-2xl border px-4 py-3 text-[11px] text-slate-100 transition ${isSettled ? "border-white/5 bg-white/[0.01]" : "border-white/12 bg-white/[0.03]"}`}>
 
       <div className="flex items-start justify-between gap-3">
         
         {/* Left side */}
         <div className="flex-1">
           {/* Swimmer + Event */}
-          <p className="text-[13px] font-semibold leading-tight">
+          <p className={`text-[13px] font-semibold leading-tight ${isSettled ? "opacity-75" : ""}`}>
             {market.swimmer}
           </p>
           <p className="mt-1 text-[11px] text-slate-200">{market.event}</p>
 
           {/* Line */}
-          <p className="mt-2">
+          <p className={`mt-2 ${isSettled ? "opacity-60" : ""}`}>
             <span className="opacity-75">Time to beat:</span>{" "}
             <span className="font-semibold">{market.timeLabel}</span>
           </p>
 
-          {/* Result */}
+          {/* Result Display */}
           {result && (
-            <p className="mt-1 text-[11px]">
-              Result: <span className="font-semibold">{result}</span>
+            <p className="mt-2 text-[11px]">
+              <span className="opacity-75">Result:</span>{" "}
+              <span className="font-bold text-white">{result}</span>
             </p>
           )}
 
-          {/* Outcome */}
-          {submitted && (
+          {/* Outcome Display */}
+          {submitted && isSettled && (
             <p className="mt-1 text-[10px] font-semibold">
               {outcome === "correct" && (
-                <span className="text-emerald-300">Correct ✓</span>
+                <span className="text-emerald-300">You Won ✓</span>
               )}
               {outcome === "incorrect" && (
-                <span className="text-rose-400">Incorrect ✗</span>
+                <span className="text-rose-400">You Lost ✗</span>
               )}
               {outcome === "pending" && (
-                <span className="text-slate-400">Pending…</span>
+                <span className="text-slate-400">Pending Result…</span>
               )}
             </p>
           )}
@@ -224,7 +225,7 @@ function PickRow({ market, pick, submitted, onClearSubmission }: PickRowProps) {
                 pick === "over"
                   ? "bg-rose-500/20 text-rose-100 border border-rose-500/50"
                   : "bg-emerald-500/20 text-emerald-100 border border-emerald-500/50"
-              }`}
+              } ${isSettled ? "opacity-80" : ""}`}
             >
               {pick}
             </span>
@@ -240,9 +241,9 @@ function PickRow({ market, pick, submitted, onClearSubmission }: PickRowProps) {
               Unlock
             </button>
           ) : (
-            // Optional: Show status if locked/final
+            // Status Badge
             <span className="text-[9px] text-slate-500 uppercase tracking-wider">
-              {isSettled ? "Final" : "Locked"}
+              {isSettled ? "Settled" : "Locked"}
             </span>
           )}
         </div>
@@ -250,7 +251,7 @@ function PickRow({ market, pick, submitted, onClearSubmission }: PickRowProps) {
 
       {/* Sentiment */}
       {totalVotes > 0 && (
-        <div className="mt-3 space-y-1">
+        <div className={`mt-3 space-y-1 ${isSettled ? "opacity-40" : ""}`}>
           <div className="flex items-center justify-between text-[10px] text-slate-300">
             <span>👥 {totalVotes}</span>
             <span>
