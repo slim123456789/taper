@@ -1,4 +1,3 @@
-// src/app/layout.tsx
 import "./globals.css";
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
@@ -11,15 +10,18 @@ const playfair = Playfair_Display({
   subsets: ["latin"],
   variable: "--font-serif",
 });
+
+// ✅ FIX: Paths updated to read from src/app/fonts/
+// Make sure you moved your .otf files to: src/app/fonts/
 const migra = localFont({
   src: [
     {
-      path: "../../public/fonts/migra/Migra-Extrabold.otf",
+      path: "./fonts/Migra-Extrabold.otf",
       weight: "800",
       style: "normal",
     },
     {
-      path: "../../public/fonts/migra/MigraItalic-ExtralightItalic.otf",
+      path: "./fonts/MigraItalic-ExtralightItalic.otf",
       weight: "200",
       style: "italic",
     },
@@ -42,7 +44,7 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${playfair.variable} ${migra.variable}`}
     >
-      <body>
+      <body className="bg-[#02030A] text-slate-100 antialiased">
         <PicksProvider>
           {children}
 
