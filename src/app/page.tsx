@@ -4,7 +4,7 @@ import { HomeFeed } from "@/components/home/HomeFeed";
 
 export default async function HomePage() {
   const supabase = await createClient(); 
-  const { data } = await supabase.from('todos').select();
+  const { data: _todos } = await supabase.from('todos').select();
 
   // 1. Fetch live data from Supabase
   const [meetsResult, marketsResult] = await Promise.all([
@@ -15,9 +15,13 @@ export default async function HomePage() {
   const meets = meetsResult.data || [];
   const allMarkets = marketsResult.data || [];
 
-  // 2. Filter & Sort (Replicating your original logic)
-  // Note: We use snake_case (votes_over) because that's what the DB returns
-  const openMarkets = allMarkets.filter((m) => !m.completed);
+  // 2. Filter & Sort
+  // FIX: Only show markets that are NOT completed AND do not have a result_time recorded.
+  // This prevents finished events from appearing in the "Today's Spotlight" section.
+  const openMarkets = allMarkets.filter((m) => {
+    const isClosed = m.completed || (m.result_time && m.result_time.toString().length > 0);
+    return !isClosed;
+  });
 
   const spotlightMarkets = openMarkets
     .sort((a, b) => {

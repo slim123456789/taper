@@ -58,8 +58,10 @@ export function MeetDetailView({ meet, markets }: MeetDetailViewProps) {
     const settled: Market[] = [];
 
     relevant.forEach((m) => {
-      // Check the completed boolean flag
-      if (m.completed || (m.result_time && m.result_time.toString().length > 0)) {
+      // Logic for determining if a market is closed/settled
+      const isSettled = m.completed || (m.result_time && m.result_time.toString().length > 0);
+      
+      if (isSettled) {
         settled.push(m);
       } else {
         upcoming.push(m);
@@ -93,7 +95,6 @@ export function MeetDetailView({ meet, markets }: MeetDetailViewProps) {
           <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Meet</p>
           <h1 className="mt-1 font-migra text-[22px] leading-snug text-white">{meet.name}</h1>
           <div className="mt-2 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.16em] text-slate-300">
-            {/* UPDATED: league_tag */}
             <span className="rounded-full border border-white/18 bg-white/[0.03] px-2 py-[3px]">{meet.league_tag}</span>
             <span className="rounded-full border border-white/18 bg-white/[0.03] px-2 py-[3px]">{meet.year}</span>
           </div>
@@ -171,20 +172,19 @@ type MarketCardProps = {
 };
 
 function MarketCard({ market, pick, submitted, onPick, onSubmit, onUnlock, lockedByTime }: MarketCardProps) {
-  // UPDATED: Read from market.time_label and market.result_time
-  // Convert to string safely using ?.toString()
   const outcome = getPickOutcome(market.time_label, market.result_time?.toString(), pick);
-  const isSettled = market.completed;
+  
+  const isClosed = !!(market.completed || (market.result_time && market.result_time.toString().length > 0));
 
-  // UPDATED: Votes visual calculation (snake_case)
   const votesOver = market.votes_over ?? 0;
   const votesUnder = market.votes_under ?? 0;
   const totalVotes = votesOver + votesUnder;
   const percentOver = totalVotes > 0 ? Math.round((votesOver / totalVotes) * 100) : 0;
   const percentUnder = 100 - percentOver;
 
-  const interactionDisabled = lockedByTime || isSettled;
-  const visualPick = (isSettled && !submitted) ? undefined : pick;
+  const interactionDisabled = !!(lockedByTime || isClosed);
+  
+  const visualPick = (isClosed && !submitted) ? undefined : pick;
 
   const handleMainAction = () => {
     if (interactionDisabled) return;
@@ -193,35 +193,31 @@ function MarketCard({ market, pick, submitted, onPick, onSubmit, onUnlock, locke
   };
 
   return (
-    <article className={`rounded-2xl border px-4 py-3 text-slate-100 transition ${isSettled ? "border-white/5 bg-white/[0.01]" : "border-white/12 bg-white/[0.03]"}`}>
-      <div className={isSettled && !submitted ? "opacity-75" : ""}>
-        {/* UPDATED: swimmer_name */}
+    <article className={`rounded-2xl border px-4 py-3 text-slate-100 transition ${isClosed ? "border-white/5 bg-white/[0.01]" : "border-white/12 bg-white/[0.03]"}`}>
+      <div className={isClosed && !submitted ? "opacity-75" : ""}>
         <p className="text-[13px] font-semibold leading-tight">{market.swimmer_name}</p>
-        {/* UPDATED: event_name */}
         <p className="mt-1 text-[11px] text-slate-200">{market.event_name}</p>
       </div>
 
       {(market.pb || market.seed) && (
-        <div className={`mt-2 flex flex-wrap gap-3 text-[11px] text-slate-300 ${isSettled && !submitted ? "opacity-60" : ""}`}>
+        <div className={`mt-2 flex flex-wrap gap-3 text-[11px] text-slate-300 ${isClosed && !submitted ? "opacity-60" : ""}`}>
           {market.pb && <span>PB: <span className="text-slate-100">{market.pb}</span></span>}
           {market.seed && <span>Seed: <span className="text-slate-100">{market.seed}</span></span>}
         </div>
       )}
 
-      <p className={`mt-2 text-[11px] text-slate-100 ${isSettled && !submitted ? "opacity-60" : ""}`}>
-        {/* UPDATED: time_label */}
+      <p className={`mt-2 text-[11px] text-slate-100 ${isClosed && !submitted ? "opacity-60" : ""}`}>
         <span className="opacity-75">Time to beat:</span> <span className="font-semibold">{market.time_label}</span>
       </p>
 
       {/* RESULT DISPLAY */}
-      {/* UPDATED: result_time */}
       {market.result_time && (
         <div className="mt-2 rounded bg-white/10 px-2 py-1 text-[11px]">
           <span className="opacity-70">Official Result:</span> <span className="font-bold text-white">{market.result_time}</span>
         </div>
       )}
 
-      {submitted && isSettled && (
+      {submitted && isClosed && (
         <p className="mt-1 text-[10px] font-semibold">
           {outcome === "correct" && <span className="text-emerald-300">You Won ✓</span>}
           {outcome === "incorrect" && <span className="text-rose-400">You Lost ✗</span>}
@@ -230,7 +226,7 @@ function MarketCard({ market, pick, submitted, onPick, onSubmit, onUnlock, locke
       )}
 
       {totalVotes > 0 && (
-        <div className={`mt-2 space-y-1 ${isSettled ? "opacity-40" : ""}`}>
+        <div className={`mt-2 space-y-1 ${isClosed ? "opacity-40" : ""}`}>
           <div className="flex items-center justify-between text-[10px] text-slate-300">
             <span>👥 {totalVotes}</span>
             <span>Over {percentOver}% · Under {percentUnder}%</span>
@@ -244,15 +240,28 @@ function MarketCard({ market, pick, submitted, onPick, onSubmit, onUnlock, locke
 
       <div className="mt-3 space-y-2">
         <div className="flex gap-1.5">
-          <button type="button" disabled={interactionDisabled} onClick={() => !submitted && onPick(market.id, "over")}
-            className={`flex-1 rounded-full border px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] transition ${visualPick === "over" ? "border-rose-300 bg-rose-500/20 text-rose-50" : "border-rose-500/70 text-rose-200 hover:bg-rose-500/10"} ${(submitted && visualPick !== "over") || (isSettled && visualPick !== "over") ? "opacity-30" : "opacity-100"} ${isSettled ? "cursor-default" : ""}`}>Over</button>
-          <button type="button" disabled={interactionDisabled} onClick={() => !submitted && onPick(market.id, "under")}
-            className={`flex-1 rounded-full border px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] transition ${visualPick === "under" ? "border-emerald-300 bg-emerald-500/20 text-emerald-50" : "border-emerald-500/70 text-emerald-200 hover:bg-emerald-500/10"} ${(submitted && visualPick !== "under") || (isSettled && visualPick !== "under") ? "opacity-30" : "opacity-100"} ${isSettled ? "cursor-default" : ""}`}>Under</button>
+          <button 
+            type="button" 
+            disabled={interactionDisabled} 
+            onClick={() => !submitted && onPick(market.id, "over")}
+            className={`flex-1 rounded-full border px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] transition ${visualPick === "over" ? "border-rose-300 bg-rose-500/20 text-rose-50" : "border-rose-500/70 text-rose-200 hover:bg-rose-500/10"} ${(submitted && visualPick !== "over") || (isClosed && visualPick !== "over") ? "opacity-30" : "opacity-100"} ${isClosed ? "cursor-default" : ""}`}>
+              Over
+          </button>
+          <button 
+            type="button" 
+            disabled={interactionDisabled} 
+            onClick={() => !submitted && onPick(market.id, "under")}
+            className={`flex-1 rounded-full border px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] transition ${visualPick === "under" ? "border-emerald-300 bg-emerald-500/20 text-emerald-50" : "border-emerald-500/70 text-emerald-200 hover:bg-emerald-500/10"} ${(submitted && visualPick !== "under") || (isClosed && visualPick !== "under") ? "opacity-30" : "opacity-100"} ${isClosed ? "cursor-default" : ""}`}>
+              Under
+          </button>
         </div>
 
-        <button type="button" disabled={interactionDisabled || (!pick && !submitted)} onClick={handleMainAction}
-          className={`w-full rounded-full px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] transition ${isSettled ? "border border-transparent bg-white/5 text-slate-500 cursor-default" : submitted ? "border border-slate-500 bg-transparent text-slate-400 hover:border-red-400 hover:text-red-300" : lockedByTime ? "border border-slate-600 bg-transparent text-slate-500" : pick ? "border border-slate-100 bg-slate-50 text-[#070A14] hover:bg-white" : "border border-slate-600 bg-transparent text-slate-500"}`}>
-          {isSettled ? (submitted ? "Settled" : "Did Not Submit") : lockedByTime ? "Locked" : submitted ? "Submitted (Tap to Unlock)" : pick ? "Submit pick" : "Choose Over/Under"}
+        <button 
+          type="button" 
+          disabled={!!(interactionDisabled || (!pick && !submitted))} 
+          onClick={handleMainAction}
+          className={`w-full rounded-full px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] transition ${isClosed ? "border border-transparent bg-white/5 text-slate-500 cursor-default" : submitted ? "border border-slate-500 bg-transparent text-slate-400 hover:border-red-400 hover:text-red-300" : lockedByTime ? "border border-slate-600 bg-transparent text-slate-500" : pick ? "border border-slate-100 bg-slate-50 text-[#070A14] hover:bg-white" : "border border-slate-600 bg-transparent text-slate-500"}`}>
+          {isClosed ? (submitted ? "Settled" : "Closed") : lockedByTime ? "Locked" : submitted ? "Submitted (Tap to Unlock)" : pick ? "Submit pick" : "Choose Over/Under"}
         </button>
       </div>
     </article>

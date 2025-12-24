@@ -14,6 +14,7 @@ interface PicksContextType {
   submitMarket: (marketId: string) => Promise<void>;
   clearSubmission: (marketId: string) => Promise<void>;
   clearAll: () => Promise<void>;
+  clearUnsubmitted: () => void; // New helper to reset uncommitted picks
   userId: string | null;
 }
 
@@ -26,9 +27,7 @@ export function PicksProvider({ children }: { children: React.ReactNode }) {
   
   const supabase = createClient();
 
-  // 1. CENTRAL AUTH & DATA LISTENER
   useEffect(() => {
-    // A. Define the data fetcher
     const fetchUserPicks = async (uid: string) => {
       const { data: dbPicks } = await supabase.from("picks").select("market_id, pick_side").eq("user_id", uid);
       
@@ -52,7 +51,6 @@ export function PicksProvider({ children }: { children: React.ReactNode }) {
       if (savedSub) setSubmitted(JSON.parse(savedSub));
     };
 
-    // B. Check initial session
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         setUserId(user.id);
@@ -63,36 +61,32 @@ export function PicksProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    // C. Listen for LIVE changes (Login / Logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session) {
-        // User logged in: Load their data
         setUserId(session.user.id);
         await fetchUserPicks(session.user.id);
       } 
       else if (event === 'SIGNED_OUT') {
-        // User logged out: WIPE EVERYTHING
         setUserId(null);
         setPicks({});
         setSubmitted({});
-        // Optional: Do we want to show guest drafts immediately? 
-        // Usually better to show blank slate so they don't see the previous user's localstorage.
+        localStorage.removeItem("taper_picks");
+        localStorage.removeItem("taper_submitted");
       }
     });
 
     return () => subscription.unsubscribe();
   }, [supabase]);
 
-  // 2. Draft Pick
   const setPick = useCallback((marketId: string, side: PickSide) => {
     setPicks((prev) => {
       const next = { ...prev, [marketId]: side };
+      // For guest users, we still keep drafts in localStorage to prevent loss on refresh
       if (!userId) localStorage.setItem("taper_picks", JSON.stringify(next));
       return next;
     });
   }, [userId]);
 
-  // 3. Submit Single
   const submitMarket = useCallback(async (marketId: string) => {
     const side = picks[marketId];
     if (!side) return;
@@ -112,7 +106,6 @@ export function PicksProvider({ children }: { children: React.ReactNode }) {
     }
   }, [picks, userId, supabase]);
 
-  // 4. Unlock Single
   const clearSubmission = useCallback(async (marketId: string) => {
     setSubmitted((prev) => {
       const next = { ...prev };
@@ -126,7 +119,20 @@ export function PicksProvider({ children }: { children: React.ReactNode }) {
     }
   }, [userId, supabase]);
 
-  // 5. Clear All
+  // NEW: Clear anything that hasn't been "Submitted"
+  const clearUnsubmitted = useCallback(() => {
+    setPicks((prevPicks) => {
+      const cleanPicks: PicksMap = {};
+      Object.keys(submitted).forEach((id) => {
+        if (submitted[id]) {
+          cleanPicks[id] = prevPicks[id];
+        }
+      });
+      if (!userId) localStorage.setItem("taper_picks", JSON.stringify(cleanPicks));
+      return cleanPicks;
+    });
+  }, [submitted, userId]);
+
   const clearAll = useCallback(async () => {
     setPicks({});
     setSubmitted({});
@@ -141,7 +147,7 @@ export function PicksProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <PicksContext.Provider
-      value={{ picks, submitted, setPick, submitMarket, clearSubmission, clearAll, userId }}
+      value={{ picks, submitted, setPick, submitMarket, clearSubmission, clearAll, clearUnsubmitted, userId }}
     >
       {children}
     </PicksContext.Provider>
